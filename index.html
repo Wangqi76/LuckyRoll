@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lucky Draw · Ocean Theme · Dual Views</title>
+  <meta name="description" content="Ocean-themed lucky draw. Audience sees equal-looking wheel; real result follows your custom probabilities. The wheel stays on the winner after each spin." />
+  <style>
+    :root{
+      --bg-deep:#031a2c; --bg-mid:#053a5f; --bg-surface:#0a6aa6;
+      --foam:#e6f7ff; --text:#f2f7ff; --muted:#a4c8ff; --accent:#5cf7a2;
+      --card: rgba(255,255,255,.06); --stroke: rgba(255,255,255,.12);
+      --shadow: 0 18px 40px rgba(0,0,0,.35); --radius:18px;
+    }
+    html,body{height:100%}
+    body{
+      margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, "Helvetica Neue", Arial;
+      color:var(--text);
+      background:
+        radial-gradient(1200px 800px at 80% -10%, rgba(46,138,222,.35), transparent 60%),
+        radial-gradient(900px 600px at -10% 20%, rgba(14,118,196,.35), transparent 55%),
+        linear-gradient(180deg, var(--bg-deep), var(--bg-mid) 45%, var(--bg-surface) 100%);
+      overflow-x:hidden;
+    }
+    .bubbles::before, .bubbles::after{
+      content:""; position:fixed; inset:0; pointer-events:none; opacity:.25; mix-blend-mode:screen;
+      background:
+        radial-gradient(8px 8px at 10% 90%, #ffffff, transparent 60%),
+        radial-gradient(10px 10px at 30% 80%, #ffffff, transparent 60%),
+        radial-gradient(6px 6px at 80% 85%, #ffffff, transparent 60%),
+        radial-gradient(7px 7px at 60% 95%, #ffffff, transparent 60%);
+      animation: float 16s linear infinite;
+    }
+    .bubbles::after{ animation-duration: 22s; opacity:.16;}
+    @keyframes float{ from{ transform: translateY(20px);} to{ transform: translateY(-40px);} }
+
+    .container{ max-width:1200px; margin:0 auto; padding:22px; position:relative; }
+    header{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:6px; }
+    .brand{ display:flex; align-items:center; gap:12px; font-weight:800; letter-spacing:.4px; }
+    .logo{ width:38px; height:38px; border-radius:12px; background: conic-gradient(from 0deg, #73e0ff, #7cffc4, #73e0ff); box-shadow:var(--shadow); }
+
+    .tabs{ display:flex; gap:8px; flex-wrap:wrap; margin:18px 0 12px; }
+    .tab{ padding:10px 14px; border-radius:12px; border:1px solid var(--stroke); background:var(--card); cursor:pointer; user-select:none; }
+    .tab[aria-selected="true"]{ background:linear-gradient(135deg, #6ee7ff, #7cffc4); color:#07253c; font-weight:800; border-color:transparent; }
+
+    .grid{ display:grid; grid-template-columns: 1.1fr .9fr; gap:24px; align-items:start; }
+    @media (max-width: 980px){ .grid{ grid-template-columns:1fr; } }
+
+    .card{ background:var(--card); border:1px solid var(--stroke); border-radius:var(--radius); box-shadow:var(--shadow); backdrop-filter: blur(6px); }
+    .card .body{ padding:18px; }
+    h2{ margin:0 0 8px 0; font-size:22px; }
+    .hint{ font-size:12px; color:var(--muted); }
+    .row{ display:grid; grid-template-columns:1fr 44px; gap:10px; align-items:center; }
+    .row input[type="text"], .row input[type="number"], .row button, .btn{ font:inherit; color:var(--text); }
+    input[type="text"], input[type="number"]{ width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--stroke); background: rgba(7,24,44,.55); outline:none; }
+    input:focus{ border-color:#8fc8ff; background: rgba(7,24,44,.7); }
+    .btn{ padding:10px 14px; border-radius:12px; border:1px solid var(--stroke); background:#0d2c4a; cursor:pointer; }
+    .btn.primary{ background:linear-gradient(135deg, #6ee7ff, #7cffc4); color:#07253c; font-weight:800; }
+    .btn.ghost{ background:transparent; }
+    .btn.warn{ background:linear-gradient(135deg, #ffd76e, #ffb86b); color:#1c1400; font-weight:800; }
+    .btn.danger{ background:linear-gradient(135deg, #ff9aa2, #ff6b6b); color:#2b0a0a; font-weight:800; }
+    .flex{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .space{ height:10px; }
+    .muted{ color:#cfe4ff; opacity:.9; font-size:13px; }
+    table{ width:100%; border-collapse:collapse; }
+    th,td{ text-align:left; padding:10px 12px; border-bottom:1px dashed var(--stroke); }
+    th{ color:#cfe4ff; font-weight:700; }
+    .result{ font-size:44px; font-weight:900; text-align:center; margin:8px 0; }
+
+    .wheel-wrap{ display:grid; grid-template-columns: 1fr; justify-items:center; gap:12px; }
+    #wheel{ width:100%; max-width:520px; aspect-ratio:1/1; display:block; }
+    .pointer{ width:0; height:0; border-left:14px solid transparent; border-right:14px solid transparent; border-bottom:22px solid #ffeb99; filter: drop-shadow(0 4px 6px rgba(0,0,0,.35)); }
+  </style>
+</head>
+<body class="bubbles">
+  <div class="container">
+    <header>
+      <div class="brand"><div class="logo" aria-hidden="true"></div><div>Lucky Draw</div></div>
+      <div class="muted">Ocean theme · Audience sees equal-looking wheel · Real result uses your custom probabilities</div>
+    </header>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" id="tab-wheel" role="tab" aria-controls="panel-wheel" aria-selected="true">Audience View (Equal-looking)</button>
+      <button class="tab" id="tab-weight" role="tab" aria-controls="panel-weight" aria-selected="false">Admin View (Real Probabilities)</button>
+    </div>
+
+    <section class="grid">
+      <!-- Left: Panels -->
+      <div>
+        <!-- Panel: Audience Wheel (visual only; uses weighted winner) -->
+        <div id="panel-wheel" role="tabpanel" aria-labelledby="tab-wheel" class="card">
+          <div class="body">
+            <h2>Participants (visual only)</h2>
+            <div class="hint">This wheel <b>always</b> shows equal sectors for each name. The <b>actual winner</b> follows your weights set on the Admin tab.</div>
+            <div class="space"></div>
+            <div id="rowsEqual" class="grid" style="grid-template-columns:1fr; gap:10px;" aria-live="polite"></div>
+            <div class="flex">
+              <button class="btn" id="addRowEqual">+ Add participant</button>
+              <button class="btn ghost" id="resetEqual">Reset example</button>
+            </div>
+            <div class="space"></div>
+            <div class="wheel-wrap">
+              <div class="pointer" aria-hidden="true"></div>
+              <canvas id="wheel" width="640" height="640" aria-label="Equal-looking wheel"></canvas>
+              <div class="flex">
+                <button class="btn primary" id="spin">🎯 Spin</button>
+                <button class="btn danger" id="clearWheelStats">Clear stats</button>
+              </div>
+              <div class="result" id="resultWheel">Not drawn yet</div>
+              <div class="muted" id="normEqual">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel: Admin weights (real probabilities) -->
+        <div id="panel-weight" role="tabpanel" aria-labelledby="tab-weight" class="card" hidden>
+          <div class="body">
+            <h2>Participants & weights (real odds)</h2>
+            <div class="hint">Enter any non‑negative numbers or percentages. We normalize them automatically. Names stay synced with the Audience view.</div>
+            <div class="space"></div>
+            <div id="rows" class="grid" aria-live="polite"></div>
+            <div class="flex">
+              <button class="btn" id="addRow">+ Add participant</button>
+              <button class="btn ghost" id="reset">Reset example</button>
+            </div>
+            <div class="space"></div>
+            <div class="flex">
+              <button class="btn primary" id="drawOnce">🎯 Draw once</button>
+              <input id="simN" type="number" min="10" step="10" value="1000" aria-label="Simulation runs" style="max-width:140px" />
+              <button class="btn warn" id="simulate">📊 Simulate</button>
+              <button class="btn danger" id="clearStats">Clear stats</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Stats card shared -->
+      <div class="card">
+        <div class="body">
+          <h2>Results & stats</h2>
+          <div id="result" class="result" role="status" aria-live="polite">Not drawn yet</div>
+          <div class="muted" id="normText">—</div>
+          <div class="space"></div>
+          <table>
+            <thead>
+              <tr>
+                <th>Participant</th>
+                <th>Theoretical share</th>
+                <th>Times won</th>
+                <th>Observed share</th>
+              </tr>
+            </thead>
+            <tbody id="statsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Templates -->
+  <template id="rowTemplateEqual">
+    <div class="row">
+      <input type="text" placeholder="Name (e.g., Josh)" />
+      <button class="btn ghost" title="Remove">✕</button>
+    </div>
+  </template>
+
+  <template id="rowTemplate">
+    <div class="row" style="grid-template-columns:1fr 120px 44px;">
+      <input type="text" placeholder="Name (e.g., Josh)" />
+      <input type="number" step="0.1" min="0" placeholder="Weight / %" />
+      <button class="btn ghost" title="Remove">✕</button>
+    </div>
+  </template>
+
+  <script>
+    // ===== Tabs =====
+    var tabWheel = document.getElementById('tab-wheel');
+    var tabWeight = document.getElementById('tab-weight');
+    var panelWheel = document.getElementById('panel-wheel');
+    var panelWeight = document.getElementById('panel-weight');
+    function switchTab(which){
+      var isWheel = which === 'wheel';
+      tabWheel.setAttribute('aria-selected', isWheel);
+      tabWeight.setAttribute('aria-selected', !isWheel);
+      panelWheel.hidden = !isWheel;
+      panelWeight.hidden = isWheel;
+      if(isWheel) syncFromWeightedToEqual(); else syncFromEqualToWeighted();
+      drawWheel(); recomputeDisplay();
+    }
+    tabWheel.addEventListener('click', function(){ switchTab('wheel'); });
+    tabWeight.addEventListener('click', function(){ switchTab('weight'); });
+
+    // ===== Shared stats table =====
+    var statsBody = document.getElementById('statsBody');
+    var resultGlobal = document.getElementById('result');
+    var normText = document.getElementById('normText');
+    var stats = new Map(); // name -> count
+    function renderStats(items, theoretical){
+      statsBody.innerHTML = '';
+      var total = Array.from(stats.values()).reduce(function(a,b){return a+b;},0);
+      items.forEach(function(it, idx){
+        var tr = document.createElement('tr');
+        var count = stats.get(it.name) || 0;
+        var obs = total ? ((count/total)*100).toFixed(2)+ '%' : '—';
+        tr.innerHTML = '<td>'+it.name+'</td><td>'+(((theoretical[idx]||0)*100).toFixed(2))+'%</td><td>'+count+'</td><td>'+obs+'</td>';
+        statsBody.appendChild(tr);
+      });
+    }
+    function bump(name){ stats.set(name, (stats.get(name)||0)+1); }
+    function clearAllStats(){ stats.clear(); resultGlobal.textContent='Not drawn yet'; }
+
+    // ===== Utils =====
+    function normalize(arr){ var s=arr.reduce(function(a,b){return a+b;},0); return s===0? arr.map(function(){return 0;}) : arr.map(function(x){return x/s;}); }
+
+    // ===== Equal Wheel (visual) =====
+    var rowsEqual = document.getElementById('rowsEqual');
+    var rowTplEqual = document.getElementById('rowTemplateEqual');
+    var resultWheel = document.getElementById('resultWheel');
+    var normEqual = document.getElementById('normEqual');
+    var clearWheelStatsBtn = document.getElementById('clearWheelStats');
+    var canvas = document.getElementById('wheel');
+    var ctx = canvas.getContext('2d');
+
+    function addRowEqual(name){
+      if(typeof name !== 'string') name = '';
+      var node = rowTplEqual.content.firstElementChild.cloneNode(true);
+      var nameInput = node.children[0];
+      var delBtn = node.children[1];
+      nameInput.value = name;
+      delBtn.addEventListener('click', function(){ node.remove(); syncFromEqualToWeighted(); drawWheel(); });
+      nameInput.addEventListener('input', function(){ syncFromEqualToWeighted(); drawWheel(); });
+      rowsEqual.appendChild(node);
+    }
+    function getEqualItems(){
+      var list=[]; rowsEqual.querySelectorAll('.row').forEach(function(r){
+        var name = r.querySelector('input').value.trim();
+        if(name) list.push({name:name});
+      });
+      return list;
+    }
+    function setRowsEqual(names){ rowsEqual.innerHTML=''; names.forEach(function(n){ addRowEqual(n); }); }
+    function theoreticalEqual(n){ return Array.from({length:n}, function(){ return n?1/n:0; }); }
+
+    // Wheel draw helpers
+    function drawWheel(){
+      var items = getEqualItems();
+      var n = items.length;
+      var W = canvas.width, H = canvas.height, R = Math.min(W,H)/2 - 6;
+      if(!spinning && typeof angle === 'number' && angle !== 0){
+        // Preserve last landed orientation
+        renderAt(angle);
+      } else {
+        ctx.clearRect(0,0,W,H);
+        ctx.save(); ctx.translate(W/2, H/2);
+        var colors = [];
+        for(var i=0;i<n;i++){
+          var hue = (i*360/n + 190) % 360;
+          colors.push('hsl('+hue+' 60% 45%)');
+        }
+        for(var j=0;j<n;j++){
+          var start = (j/n) * Math.PI*2;
+          var end = ((j+1)/n) * Math.PI*2;
+          ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,R,start,end); ctx.closePath();
+          ctx.fillStyle = colors[j]; ctx.fill();
+          // Labels
+          ctx.save();
+          var mid = (start+end)/2; var rText = R*0.68;
+          ctx.rotate(mid); ctx.translate(rText,0); ctx.rotate(Math.PI/2);
+          ctx.fillStyle = '#fff'; ctx.font = '600 18px ui-sans-serif, system-ui';
+          ctx.textAlign = 'center'; ctx.textBaseline='middle';
+          var label = items[j].name.length>14 ? items[j].name.slice(0,14)+'…' : items[j].name;
+          ctx.fillText(label,0,0);
+          ctx.restore();
+        }
+        ctx.restore();
+      }
+      // Audience sees equal (fake) share text
+      normEqual.textContent = n ?
+        'Equal chance (visual): ' + items.map(function(it){ return it.name + ' ' + (100/n).toFixed(2) + '%'; }).join(' · ') : '—';
+      renderStats(items, theoreticalEqual(n));
+    }
+
+    function renderAt(a){
+      var items = getEqualItems(); var n = items.length; var W = canvas.width, H = canvas.height, R = Math.min(W,H)/2 - 6;
+      var ctx2 = ctx; ctx2.clearRect(0,0,W,H); ctx2.save(); ctx2.translate(W/2,H/2); ctx2.rotate(a);
+      var colors=[]; for(var i=0;i<n;i++){ var hue=(i*360/n + 190)%360; colors.push('hsl('+hue+' 60% 45%)'); }
+      for(var j=0;j<n;j++){
+        var start=(j/n)*Math.PI*2, end=((j+1)/n)*Math.PI*2;
+        ctx2.beginPath(); ctx2.moveTo(0,0); ctx2.arc(0,0,R,start,end); ctx2.closePath(); ctx2.fillStyle=colors[j]; ctx2.fill();
+        ctx2.save(); var mid=(start+end)/2; var rText=R*0.68; ctx2.rotate(mid); ctx2.translate(rText,0); ctx2.rotate(Math.PI/2);
+        ctx2.fillStyle='#fff'; ctx2.font='600 18px ui-sans-serif, system-ui'; ctx2.textAlign='center'; ctx2.textBaseline='middle';
+        var label = items[j].name.length>14 ? items[j].name.slice(0,14)+'…' : items[j].name; ctx2.fillText(label,0,0); ctx2.restore();
+      }
+      ctx2.restore();
+    }
+
+    // ===== Spin logic (winner by real weights from Admin tab) =====
+    var spinning = false, angle = 0, targetAngle = 0, startTime = 0, duration = 3200; // ms
+    var POINTER_ANGLE = -Math.PI/2; // 12 o'clock
+    var TAU = 2*Math.PI;
+    function normAng(x){ return ((x % TAU) + TAU) % TAU; }
+
+    function spin(){
+      if(spinning) return; var itemsEqual = getEqualItems(); var n = itemsEqual.length; if(n<2){ alert('Add at least 2 participants for the wheel.'); return; }
+      // Pick winner using the real (admin) weights
+      var weighted = getWeightedItems();
+      if(weighted.length !== n || !sameNames(weighted, itemsEqual)){ // keep lists aligned
+        syncFromEqualToWeighted(); weighted = getWeightedItems();
+      }
+      var winnerName = drawOneWeighted(weighted);
+      var winnerIdx = itemsEqual.findIndex(function(it){ return it.name === winnerName; });
+      if(winnerIdx < 0){ alert('Names out of sync. Please check both tabs.'); return; }
+      var sliceAngle = 2*Math.PI/n;
+      var winnerMid = (winnerIdx + 0.5) * sliceAngle; // center of the slice
+      var extraSpins = 3 + Math.floor(Math.random()*2); // 3-4 full spins
+      var deltaToWinner = normAng(POINTER_ANGLE - (winnerMid + angle));
+      targetAngle = angle + extraSpins*TAU + deltaToWinner;
+      startTime = performance.now(); spinning = true;
+      function frame(t){
+        var p = Math.min(1, (t-startTime)/duration);
+        var eased = 1 - Math.pow(1-p, 3);
+        var current = angle + (targetAngle-angle)*eased;
+        renderAt(current);
+        if(p<1){ requestAnimationFrame(frame); } else {
+          spinning = false; angle = targetAngle % TAU; // keep final orientation (do not reset)
+          document.getElementById('resultWheel').textContent = '🎉 ' + winnerName;
+          resultGlobal.textContent = '🎉 ' + winnerName;
+          bump(winnerName);
+          // Refresh texts & stats only (do not redraw base wheel)
+          var itemsNow = getEqualItems(); var nNow = itemsNow.length;
+          normEqual.textContent = nNow ? 'Equal chance (visual): ' + itemsNow.map(function(it){ return it.name + ' ' + (100/nNow).toFixed(2) + '%'; }).join(' · ') : '—';
+          renderStats(itemsNow, theoreticalEqual(nNow));
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+
+    document.getElementById('spin').addEventListener('click', spin);
+    clearWheelStatsBtn.addEventListener('click', function(){ clearAllStats(); resultWheel.textContent='Not drawn yet'; drawWheel(); });
+    document.getElementById('addRowEqual').addEventListener('click', function(){ addRowEqual(''); });
+    document.getElementById('resetEqual').addEventListener('click', function(){ setRowsEqual(['Josh','Isla','Wangqi']); syncFromEqualToWeighted(); clearAllStats(); drawWheel(); });
+
+    // ===== Admin (real weights) =====
+    var rowsEl = document.getElementById('rows');
+    var rowTpl = document.getElementById('rowTemplate');
+    var drawOnceBtn = document.getElementById('drawOnce');
+    var simulateBtn = document.getElementById('simulate');
+    var clearStatsBtn = document.getElementById('clearStats');
+    var simNInput = document.getElementById('simN');
+
+    function addRow(name, weight){
+      if(typeof name !== 'string') name = '';
+      if(typeof weight !== 'number') weight = '';
+      var node = rowTpl.content.firstElementChild.cloneNode(true);
+      var nameInput = node.children[0];
+      var weightInput = node.children[1];
+      var delBtn = node.children[2];
+      nameInput.value = name; weightInput.value = weight;
+      delBtn.addEventListener('click', function(){ node.remove(); syncFromWeightedToEqual(); recomputeDisplay(); });
+      nameInput.addEventListener('input', function(){ syncFromWeightedToEqual(); recomputeDisplay(); });
+      weightInput.addEventListener('input', recomputeDisplay);
+      rowsEl.appendChild(node);
+    }
+    function getWeightedItems(){
+      var list=[]; rowsEl.querySelectorAll('.row').forEach(function(r){
+        var name=r.children[0].value.trim(); var w=parseFloat(r.children[1].value);
+        if(name && !isNaN(w) && w>=0) list.push({name:name, weight:w});
+      }); return list;
+    }
+    function setRows(data){ rowsEl.innerHTML=''; data.forEach(function(o){ addRow(o.name, o.weight); }); recomputeDisplay(); }
+
+    function recomputeDisplay(){
+      var items=getWeightedItems(); var probs=normalize(items.map(function(i){return i.weight;}));
+      normText.textContent = probs.length ? 'Normalized (theoretical): ' + items.map(function(i,idx){ return i.name + ' ' + (probs[idx]*100).toFixed(3) + '%'; }).join(' · ') : '—';
+      renderStats(items, probs);
+    }
+
+    function drawOneWeighted(items){
+      var probs = normalize(items.map(function(i){return i.weight;}));
+      var r=Math.random(); var cum=0; for(var i=0;i<probs.length;i++){ cum+=probs[i]; if(r<=cum) return items[i].name; }
+      return items[items.length-1] ? items[items.length-1].name : '';
+    }
+
+    drawOnceBtn.addEventListener('click', function(){
+      var items=getWeightedItems(); if(items.length<1){ alert('Add at least one participant'); return; }
+      if(items.every(function(i){return !i.weight || i.weight<=0;})){ alert('At least one participant must have weight > 0'); return; }
+      var winner=drawOneWeighted(items); resultGlobal.textContent='🎉 ' + winner; bump(winner); recomputeDisplay(); syncFromWeightedToEqual(); drawWheel();
+    });
+
+    simulateBtn.addEventListener('click', function(){
+      var items=getWeightedItems(); if(items.length<1){ alert('Add at least one participant'); return; }
+      if(items.every(function(i){return !i.weight || i.weight<=0;})){ alert('At least one participant must have weight > 0'); return; }
+      var N=Math.max(10, Number(simNInput.value)||1000);
+      for(var k=0;k<N;k++){ var w=drawOneWeighted(items); bump(w); }
+      resultGlobal.textContent='Simulated ' + N + ' runs ✅'; recomputeDisplay(); syncFromWeightedToEqual(); drawWheel();
+    });
+
+    clearStatsBtn.addEventListener('click', function(){ clearAllStats(); recomputeDisplay(); });
+
+    // ===== Sync between tabs =====
+    function sameNames(a,b){ if(a.length!==b.length) return false; var A=a.map(function(x){return x.name;}), B=b.map(function(x){return x.name;}); return A.every(function(n,i){ return n===B[i]; }); }
+    function syncFromWeightedToEqual(){ var items = getWeightedItems(); setRowsEqual(items.map(function(it){ return it.name; })); }
+    function syncFromEqualToWeighted(){
+      var names = getEqualItems().map(function(x){return x.name;});
+      var current = getWeightedItems();
+      var map = new Map(current.map(function(it){ return [it.name, it.weight]; }));
+      var next = names.map(function(n){ return { name:n, weight: map.has(n) ? map.get(n) : 1 }; });
+      setRows(next);
+    }
+
+    // ===== Init default data =====
+    setRows([
+      {name:'Josh', weight:99},
+      {name:'Isla', weight:0.5},
+      {name:'Wangqi', weight:0.5}
+    ]);
+    syncFromWeightedToEqual();
+    drawWheel();
+  </script>
+</body>
+</html>
